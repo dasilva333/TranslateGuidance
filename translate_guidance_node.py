@@ -1,3 +1,4 @@
+from datetime import datetime
 from torch import Tensor
 import torch
 import csv
@@ -6,6 +7,7 @@ from .translate_guidance_lib import translate_guidance
 from comfy.ldm.flux.layers import (
     timestep_embedding,
 )
+log_file = os.path.join(os.path.dirname(__file__), "guidance_output.csv")
 
 class TranslateGuidanceNode:
     @classmethod
@@ -48,15 +50,12 @@ class TranslateGuidanceNode:
     
     def initialize_log_file(self):
         """Initialize the CSV log file with headers"""
-        log_file = "guidance_output.csv"
         with open(log_file, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['Timestamp', 'Guidance Method', 'Input Guidance', 'Output Guidance', "Negative Conditioning"])
 
     def log_guidance_values(self, guidance_method, input_guidance, output_guidance, is_negative_conditioning):
         """Append guidance values to the log file"""
-        import datetime
-        log_file = "guidance_output.csv"
         
         # Convert tensor values to float if necessary
         if torch.is_tensor(input_guidance):
@@ -67,7 +66,7 @@ class TranslateGuidanceNode:
         with open(log_file, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([
-                datetime.datetime.now().isoformat(),
+                datetime.now().isoformat(),
                 guidance_method if guidance_method else "None",
                 input_guidance,
                 output_guidance, 
