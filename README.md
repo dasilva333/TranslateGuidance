@@ -1,5 +1,7 @@
 # Flux Enhanced Guidance Methods
 
+![header](FluxGuidance2-1.jpg)
+
 This repository enhances the Flux model with additional guidance transformation methods for improved control and creativity during image generation.
 
 ## Features

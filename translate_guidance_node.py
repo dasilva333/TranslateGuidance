@@ -94,7 +94,7 @@ class TranslateGuidanceNode:
             transformer_options={},
             attn_mask: Tensor = None,
         ) -> Tensor:
-            print("Custom forward_orig has been called")
+            # print("Custom forward_orig has been called")
             
             # Extract patches_replace from transformer_options
             patches_replace = transformer_options.get("patches_replace", {})
@@ -121,7 +121,7 @@ class TranslateGuidanceNode:
                 
                 # Process and log guidance values
                 if current_guidance_method and current_guidance_method != "None":
-                    print(f"Using guidance method: {current_guidance_method} for guidance: {guidance}")
+                    # print(f"Using guidance method: {current_guidance_method} for guidance: {guidance}")
                     translated_guidance = translate_guidance(timesteps, guidance, img.device, current_guidance_method)
                     output_guidance = translated_guidance
                     vec = vec + m.model.diffusion_model.guidance_in(timestep_embedding(translated_guidance, 256).to(img.dtype))
@@ -218,7 +218,7 @@ class TranslateGuidanceNode:
             is_negative_conditioning = not is_negative_conditioning
 
             # Optionally log the current state
-            print(f"Current conditioning: {'Negative' if is_negative_conditioning else 'Positive'}")
+            # print(f"Current conditioning: {'Negative' if is_negative_conditioning else 'Positive'}")
 
             return img
 
