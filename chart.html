@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guidance Charts</title>
+  <script type="module">
+    import React from 'https://cdn.skypack.dev/react';
+    import ReactDOM from 'https://cdn.skypack.dev/react-dom';
+    import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'https://cdn.skypack.dev/recharts';
+
+    // Function to load CSV and parse the data
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'guidance_output.csv', true);
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        console.log(xhr.responseText);
+        const csvData = xhr.responseText
+          .split('\n')
+          .filter(line => line.trim()) // Remove empty lines
+          .map(line => {
+            const [timestamp, guidanceMethod, inputGuidance, outputGuidance, isNegative] = line.split(',');
+            return {
+              timestamp: new Date(timestamp).getTime(),
+              guidanceMethod,
+              inputGuidance: parseFloat(inputGuidance),
+              outputGuidance: parseFloat(outputGuidance),
+              isNegativeConditioning: isNegative.trim() === 'True'
+            };
+          })
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        // Split data into negative and positive conditioning
+        const negativeData = csvData.filter(item => item.isNegativeConditioning);
+        const positiveData = csvData.filter(item => !item.isNegativeConditioning);
+
+        renderCharts(negativeData, positiveData);
+      }
+    };
+    xhr.send();
+
+    function renderCharts(negativeData, positiveData) {
+      const formatXAxis = (timestamp) => {
+        const date = new Date(timestamp);
+        return `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+      };
+
+      const Chart = ({ data, title }) => (
+        React.createElement('div', { className: 'chart-container', style: { width: '100%', height: '500px', padding: '20px' } },
+          React.createElement('h3', {}, title),
+          React.createElement(ResponsiveContainer, { width: "100%", height: "100%" },
+            React.createElement(LineChart, {
+              data,
+              margin: { top: 20, right: 30, left: 20, bottom: 50 } // Adjust bottom for spacing
+            },
+              React.createElement(CartesianGrid, { strokeDasharray: "3 3" }),
+              React.createElement(XAxis, {
+                dataKey: "timestamp",
+                type: "number",
+                domain: ['dataMin', 'dataMax'], // Adjust to start at the left edge
+                tickFormatter: formatXAxis,
+                label: { value: 'Time', position: 'insideBottom', offset: 10 } // Offset label to avoid overlap
+              }),
+              React.createElement(YAxis, { label: { value: 'Guidance Value', angle: -90, position: 'insideLeft' } }),
+              React.createElement(Tooltip, {
+                labelFormatter: (value) => new Date(value).toLocaleTimeString(),
+                formatter: (value, name) => [
+                  value.toFixed(4),
+                  name === 'inputGuidance' ? 'Input Guidance' : 'Output Guidance'
+                ]
+              }),
+              React.createElement(Legend, {
+                layout: "horizontal",
+                align: "right", // Align to bottom right
+                verticalAlign: "bottom", // Place at the bottom
+                wrapperStyle: { paddingTop: '20px' } // Add spacing
+              }),
+              React.createElement(Line, {
+                type: "monotone",
+                dataKey: "inputGuidance",
+                stroke: "#8884d8",
+                name: "Input Guidance",
+                dot: false,
+                strokeWidth: 2 // Thicker line
+              }),
+              React.createElement(Line, {
+                type: "monotone",
+                dataKey: "outputGuidance",
+                stroke: "#82ca9d",
+                name: "Output Guidance",
+                dot: false,
+                strokeWidth: 2 // Thicker line
+              })
+            )
+          )
+        )
+      );
+
+      // Get method names from data
+      const negativeMethod = negativeData.length > 0 ? negativeData[0].guidanceMethod : "Unknown";
+      const positiveMethod = positiveData.length > 0 ? positiveData[2].guidanceMethod : "Unknown";
+
+      ReactDOM.render(
+        React.createElement('div', {},
+          React.createElement(Chart, { data: negativeData, title: `Negative Conditioning (${negativeMethod})` }),
+          React.createElement(Chart, { data: positiveData, title: `Positive Conditioning (${positiveMethod})` })
+        ),
+        document.getElementById('root')
+      );
+    }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>

@@ -1,6 +1,7 @@
-
 from torch import Tensor
 import torch
+import csv
+import os
 from .translate_guidance_lib import translate_guidance
 from comfy.ldm.flux.layers import (
     timestep_embedding,
@@ -12,7 +13,21 @@ class TranslateGuidanceNode:
         return {
             "required": {
                 "model": ("MODEL",),
-                "guidance_method": ([
+                "positive_guidance_method": ([
+                    "None",  # Added None/Disabled option
+                    "cosine",
+                    "inverted_cosine",
+                    "sin",
+                    "linear_increase",
+                    "linear_decrease",
+                    "random_noise",
+                    "random_gaussian",
+                    "random_extreme",
+                    "ripsaw",
+                    "bubble"
+                ],),
+                "negative_guidance_method": ([
+                    "None",  # Added None/Disabled option
                     "cosine",
                     "inverted_cosine",
                     "sin",
@@ -29,12 +44,43 @@ class TranslateGuidanceNode:
 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "apply_transformer_options"
-
     CATEGORY = "advanced/model"
+    
+    def initialize_log_file(self):
+        """Initialize the CSV log file with headers"""
+        log_file = "guidance_output.csv"
+        with open(log_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Timestamp', 'Guidance Method', 'Input Guidance', 'Output Guidance', "Negative Conditioning"])
 
-    def apply_transformer_options(self, model, guidance_method):
+    def log_guidance_values(self, guidance_method, input_guidance, output_guidance, is_negative_conditioning):
+        """Append guidance values to the log file"""
+        import datetime
+        log_file = "guidance_output.csv"
+        
+        # Convert tensor values to float if necessary
+        if torch.is_tensor(input_guidance):
+            input_guidance = input_guidance.item()
+        if torch.is_tensor(output_guidance):
+            output_guidance = output_guidance.item()
+            
+        with open(log_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                datetime.datetime.now().isoformat(),
+                guidance_method if guidance_method else "None",
+                input_guidance,
+                output_guidance, 
+                is_negative_conditioning
+            ])
+
+    def apply_transformer_options(self, model, positive_guidance_method, negative_guidance_method):
+        # Initialize log file
+        self.initialize_log_file()
+        
         # Clone the model to avoid modifying the original instance
         m = model.clone()
+        is_negative_conditioning = True
 
         # Replace `forward_orig` with the custom implementation
         def custom_forward_orig(
@@ -53,7 +99,8 @@ class TranslateGuidanceNode:
             
             # Extract patches_replace from transformer_options
             patches_replace = transformer_options.get("patches_replace", {})
-            
+            nonlocal is_negative_conditioning  # Ensure access to the flag from the outer scope
+
             # Validate input dimensions
             if img.ndim != 3 or txt.ndim != 3:
                 raise ValueError("Input img and txt tensors must have 3 dimensions.")
@@ -68,13 +115,28 @@ class TranslateGuidanceNode:
                     raise ValueError("Didn't get guidance strength for guidance distilled model.")
                 
                 # Check if guidance_method is set in transformer_options
-                guidance_method = transformer_options.get("guidance_method", None)
-                if guidance_method:
-                    print(f"Using guidance method: {guidance_method} for guidance: {guidance}")
-                    method_guidance = translate_guidance(timesteps, guidance, img.device, guidance_method)
-                    vec = vec + m.model.diffusion_model.guidance_in(timestep_embedding(method_guidance, 256).to(img.dtype))
+                if (is_negative_conditioning):
+                    current_guidance_method = transformer_options.get("negative_guidance_method", None)
                 else:
+                    current_guidance_method = transformer_options.get("positive_guidance_method", None)
+                
+                # Process and log guidance values
+                if current_guidance_method and current_guidance_method != "None":
+                    print(f"Using guidance method: {current_guidance_method} for guidance: {guidance}")
+                    translated_guidance = translate_guidance(timesteps, guidance, img.device, current_guidance_method)
+                    output_guidance = translated_guidance
+                    vec = vec + m.model.diffusion_model.guidance_in(timestep_embedding(translated_guidance, 256).to(img.dtype))
+                else:
+                    output_guidance = timestep_embedding(guidance, 256)
                     vec = vec + m.model.diffusion_model.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
+                
+                # Log the guidance values
+                self.log_guidance_values(
+                    current_guidance_method,
+                    guidance,
+                    output_guidance.mean().item(),
+                    is_negative_conditioning
+                )
 
             vec = vec + m.model.diffusion_model.vector_in(y[:, :m.model.diffusion_model.params.vec_in_dim])
             txt = m.model.diffusion_model.txt_in(txt)
@@ -152,8 +214,14 @@ class TranslateGuidanceNode:
 
             # Final layer processing
             img = m.model.diffusion_model.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
-            return img
 
+            # Toggle the flag at each call
+            is_negative_conditioning = not is_negative_conditioning
+
+            # Optionally log the current state
+            print(f"Current conditioning: {'Negative' if is_negative_conditioning else 'Positive'}")
+
+            return img
 
         # Override the `forward_orig` method
         m.model.diffusion_model.forward_orig = custom_forward_orig
@@ -167,9 +235,18 @@ class TranslateGuidanceNode:
         if "transformer_options" not in m.model_options:
             m.model_options["transformer_options"] = {}
 
-        # Update transformer_options with the selected guidance method
-        m.model_options["transformer_options"].update({"guidance_method": guidance_method})
+        # Update transformer_options with the selected guidance method only if it's not None
+        if positive_guidance_method != "None":
+            m.model_options["transformer_options"].update({"positive_guidance_method": positive_guidance_method})
+        else:
+            # Remove the guidance_method key if it exists when None is selected
+            m.model_options["transformer_options"].pop("positive_guidance_method", None)
+
+        if negative_guidance_method != "None":
+            m.model_options["transformer_options"].update({"negative_guidance_method": negative_guidance_method})
+        else:
+            # Remove the guidance_method key if it exists when None is selected
+            m.model_options["transformer_options"].pop("negative_guidance_method", None)    
 
         print("Updated transformer_options:", m.model_options["transformer_options"])
         return (m,)
-
