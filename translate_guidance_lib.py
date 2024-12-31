@@ -1,6 +1,6 @@
 import torch
 import math
-
+__all__ = ["translate_guidance", "FORMULAS", "PATTERNS"]
 
 # -----------------------------------
 # FORMULAS + PATTERNS
@@ -23,7 +23,7 @@ FORMULAS = [
     "intelligent_random",
 ]
 
-PATTERN = [
+PATTERNS = [
     "None",  # Added None/Disabled option
     "chainsaw",
     "ripsaw",
@@ -244,7 +244,7 @@ def translate_pattern(timestep: torch.Tensor,
         timestep    : scalar or 1D tensor in [0,1].
         guidance    : scalar or 1D tensor of original guidance.
         device      : torch device on which computations will run.
-        pattern_name: one of the keys from PATTERN, e.g. 'chainsaw', 'ripsaw', 'bubble', etc.
+        pattern_name: one of the keys from PATTERNS, e.g. 'chainsaw', 'ripsaw', 'bubble', etc.
 
     Returns:
         A further transformed guidance tensor.
@@ -294,12 +294,12 @@ def translate_guidance(timestep: torch.Tensor,
         device  : torch device on which computations will run.
         config  : dict containing keys like:
                     {
-                      'positive_guidance_formula': 'cosine',  # or 'None', 'inverted_cosine', etc.
-                      'positive_pattern': 'ripsaw',           # or 'None', 'bubble', etc.
+                      'formula_name': 'cosine',  # or 'None', 'inverted_cosine', etc.
+                      'pattern_name': 'ripsaw',           # or 'None', 'bubble', etc.
                       'positive_lowest_guidance': ...,
                       'positive_median_guidance': ...,
                       'positive_highest_guidance': ...,
-                      'positive_guidance_scale': ...,
+                      'formula_scale': ...,
                       ...
                     }
 
@@ -311,9 +311,10 @@ def translate_guidance(timestep: torch.Tensor,
         config = {}
 
     # Grab relevant formula/pattern names from the config
-    formula_name = config.get('positive_guidance_formula', 'None')
-    pattern_name = config.get('positive_pattern', 'None')
+    formula_name = config.get('formula_name', 'None')
+    pattern_name = config.get('pattern_name', 'None')
 
+    # print(f"formula_name: {formula_name}, pattern_name: {pattern_name}")
     # Step 1: Apply formula
     formula_transformed = translate_formula(
         timestep,
@@ -322,6 +323,7 @@ def translate_guidance(timestep: torch.Tensor,
         formula_name=formula_name,
         base_value=4.5  # or whatever default base offset you want
     )
+    # print(f"formula_transformed: {formula_transformed}, guidance: {guidance}")
 
     # Step 2: Apply pattern
     patterned_transformed = translate_pattern(
@@ -338,7 +340,8 @@ def translate_guidance(timestep: torch.Tensor,
     # patterned_transformed = patterned_transformed.clamp_(min_val, max_val)
 
     # If you want an overall scale:
-    scale_val = config.get('positive_guidance_scale', 1.0)
+    scale_val = config.get('formula_scale', 1.0)
     final = patterned_transformed * scale_val
 
     return final
+

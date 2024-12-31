@@ -1,12 +1,23 @@
-# Import the CustomSaveImage class from the custom_save_node.py file
-from .translate_guidance_node import TranslateGuidanceNode
+# Import the necessary classes
+from .translate_guidance_node import (
+    TranslateGuidanceSimpleNode,
+    TranslateGuidanceStandardNode,
+    TranslateGuidanceAdvancedNode,
+    TranslateGuidanceChartNode,
+)
 
 # Map the node name to the class
 NODE_CLASS_MAPPINGS = {
-    "Translate Flux Guidance": TranslateGuidanceNode,  # This is how it will appear in ComfyUI
+    "TranslateFluxGuidanceSimple": TranslateGuidanceSimpleNode,
+    "TranslateFluxGuidanceStandard": TranslateGuidanceStandardNode,  
+    "TranslateFluxGuidanceAdvanced": TranslateGuidanceAdvancedNode,  
+    "TranslateFluxGuidanceChart": TranslateGuidanceChartNode,
 }
 
-# Optionally, map a display name to make it look more user-friendly
+# Map a display name to make it look more user-friendly
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "Translate Flux Guidance": "🖼️ Translate Flux Guidance",
+    "TranslateFluxGuidanceSimple": "🖼️ Translate Flux Guidance Simple",
+    "TranslateFluxGuidanceStandard": "🖼️ Translate Flux Guidance Standard",
+    "TranslateFluxGuidanceAdvanced": "🖼️ Translate Flux Guidance Advanced",
+    "TranslateFluxGuidanceChart": "📊 Translate Flux Guidance Chart",
 }
